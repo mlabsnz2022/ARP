@@ -19,67 +19,14 @@ class AspectRatioApp(Gtk.Window):
         self.set_default_size(380, 500)
 
         # Apply Enhanced Dark Mode CSS
-        screen = Gdk.Screen.get_default()
-        provider = Gtk.CssProvider()
-        style = b"""
-            /* Main Window: Deep Forest Gray-Green */
-            window { 
-                background-color: #1a2421; 
-                color: #e0e0e0; 
-            }
-            
-            /* Inputs: Slightly lighter muted forest green */
-            entry { 
-                background-color: #24302c; 
-                color: white; 
-                border: 1px solid #364540; 
-                border-radius: 8px;
-                font-size: 18px;
-                padding: 12px;
-                font-weight: 500;
-            }
-            
-            /* Highlight border when typing */
-            entry:focus { border-color: #4e9a06; }
-
-            label { font-weight: bold; margin-bottom: 5px; color: #9aad9a; font-size: 14px; }
-            
-            /* Detected Ratio Box */
-            .ratio-box { 
-                background-color: #131a18; 
-                padding: 15px; 
-                border-radius: 8px; 
-                font-size: 18px; 
-                color: #729fcf; /* Muted blue looks great against green */
-                font-weight: bold;
-            }
-            
-        /* Dropdown and special entries */
-            combobox, combobox text {
-                background-color: #24302c;
-                color: white;
-                border: 1px solid #364540;
-                border-radius: 8px;
-                padding: 10px;
-            }
-            
-            button {
-                background-color: #2c3834;
-                color: #e0e0e0;
-                border: 1px solid #364540;
-                border-radius: 8px;
-                padding: 5px 10px;
-                font-size: 18px;
-            }
-            
-            button:hover {
-                background-color: #364540;
-            }
-            
-            separator { margin: 10px 0; background-color: #2c3834; }
-        """
-        provider.load_from_data(style)
-        Gtk.StyleContext.add_provider_for_screen(screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.screen = Gdk.Screen.get_default()
+        self.provider = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_screen(self.screen, self.provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        
+        # Initial Color
+        initial_color = Gdk.RGBA()
+        initial_color.parse("#1a2421")
+        self.update_theme(initial_color)
 
         # Aspect Ratio Data (inches or ratios)
         self.presets = {
@@ -127,9 +74,14 @@ class AspectRatioApp(Gtk.Window):
         self.swap_btn = Gtk.Button(label="⇄")
         self.swap_btn.set_tooltip_text("Swap Orientation")
         
+        self.color_btn = Gtk.ColorButton()
+        self.color_btn.set_rgba(initial_color)
+        self.color_btn.set_tooltip_text("Pick Theme Color")
+        
         hbox_presets.pack_start(self.preset_combo, True, True, 0)
         hbox_presets.pack_start(self.dpi_entry, False, False, 0)
         hbox_presets.pack_start(self.swap_btn, False, False, 0)
+        hbox_presets.pack_start(self.color_btn, False, False, 0)
         vbox.pack_start(hbox_presets, False, False, 0)
 
         vbox.pack_start(Gtk.Separator(), False, False, 5)
@@ -171,6 +123,7 @@ class AspectRatioApp(Gtk.Window):
         self.preset_combo.connect("changed", self.on_preset_changed)
         self.dpi_entry.connect("changed", self.on_preset_changed)
         self.swap_btn.connect("clicked", self.swap_orientation)
+        self.color_btn.connect("color-set", self.on_color_set)
         self.orig_x.connect("changed", self.update_calculation)
         self.orig_y.connect("changed", self.update_calculation)
         self.new_x.connect("changed", self.calc_height)
@@ -182,6 +135,40 @@ class AspectRatioApp(Gtk.Window):
         y_val = self.orig_y.get_text()
         self.orig_x.set_text(y_val)
         self.orig_y.set_text(x_val)
+
+    def on_color_set(self, widget):
+        self.update_theme(widget.get_rgba())
+
+    def update_theme(self, rgba):
+        r, g, b = rgba.red, rgba.green, rgba.blue
+        brightness = (r * 0.299 + g * 0.587 + b * 0.114)
+        bg_hex = "#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255))
+        
+        if brightness > 0.5:
+            text_color = "#1a2421"
+            secondary_text = "#4a5d58"
+            input_bg = "rgba(0,0,0,0.05)"
+            border_color = "rgba(0,0,0,0.2)"
+            accent = "#2e3436"
+        else:
+            text_color = "#e0e0e0"
+            secondary_text = "#9aad9a"
+            input_bg = "rgba(255,255,255,0.1)"
+            border_color = "rgba(255,255,255,0.2)"
+            accent = "#729fcf"
+
+        css = f"""
+            window {{ background-color: {bg_hex}; color: {text_color}; }}
+            entry {{ background-color: {input_bg}; color: {text_color}; border: 1px solid {border_color}; border-radius: 8px; font-size: 18px; padding: 12px; }}
+            entry:focus {{ border-color: {accent}; }}
+            label {{ font-weight: bold; margin-bottom: 5px; color: {secondary_text}; font-size: 14px; }}
+            .ratio-box {{ background-color: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; font-size: 18px; color: {accent}; font-weight: bold; }}
+            combobox, combobox text {{ background-color: {input_bg}; color: {text_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 10px; }}
+            button {{ background-color: {input_bg}; color: {text_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 5px 10px; font-size: 18px; }}
+            button:hover {{ background-color: rgba(255,255,255,0.1); }}
+            separator {{ margin: 10px 0; background-color: {border_color}; }}
+        """
+        self.provider.load_from_data(css.encode())
 
     def on_preset_changed(self, widget):
         preset_name = self.preset_combo.get_active_text()
