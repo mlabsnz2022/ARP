@@ -1,0 +1,4 @@
+aspect_tool_bup.py
+__pycache__/
+*.pyc
+.DS_Store
